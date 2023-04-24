@@ -1,2 +1,2 @@
 # agent
-an idea for user agent on move
+an idea for user agent on move.
