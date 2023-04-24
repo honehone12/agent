@@ -106,10 +106,4 @@ module agent::agent {
     public fun coin_balance<TCoin>(agent: Agent): u64 {
         coin::balance<TCoin>(agent.inner)
     }
-
-    public fun transfer_coin<TCoin>(from: &SignerRef, to: address, amount: u64)
-    acquires AgentCore {
-        let agent_signer = generate_signer(from);
-        coin::transfer<TCoin>(&agent_signer, to, amount);
-    }
 }

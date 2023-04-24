@@ -50,12 +50,6 @@ module agent::test_agent {
             agent::fund_coin<VAptosCoin>(publisher, agent, 1000_000);        
             assert!(agent::coin_balance<VAptosCoin>(agent) == 1000_000, 0);
         };
-        {
-            let app = borrow_global<App>(signer::address_of(publisher));
-            let signer_ref = smart_table::borrow(&app.agent_table, agent);
-            agent::transfer_coin<VAptosCoin>(signer_ref, signer::address_of(publisher), 1000_000);
-            assert!(agent::coin_balance<VAptosCoin>(agent) == 0, 1);
-        }
     }
 
     #[test(publisher = @0xcafe)]
