@@ -2,8 +2,6 @@
 // modified from https://github.com/move-language/move/tree/main/language/documentation/tutorial
 //  and https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/framework/aptos-framework/sources/aptos_coin.move
 
-// VAPT is virtual APT for funding agents.
-
 module agent::v_aptos_coin {
     use std::string;
     use std::error;
