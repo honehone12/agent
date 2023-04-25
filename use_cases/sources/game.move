@@ -1,9 +1,11 @@
 module use_cases::game {
     use std::signer;
+    use std::option;
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_framework::coin;
     use aptos_token::token;
     use agent::agent::{Self, Agent, SignerRef};
+    use agent::coin_store;
     use use_cases::virtual_coin::{Self, VirtualCoin};
 
     const ADMIN_ONLY: u64 = 1;
@@ -34,7 +36,7 @@ module use_cases::game {
         let signer_ref = agent::generate_signer_ref(&constructor);
         let agent_signer = agent::generate_signer(&signer_ref);
         let game = borrow_global_mut<Game>(pub_addr);
-        coin::register<VirtualCoin>(&agent_signer);
+        coin_store::register<VirtualCoin>(&signer_ref, option::none());
         token::initialize_token_store(&agent_signer);
         smart_table::add(&mut game.user_table, agent, signer_ref);
         agent
@@ -42,11 +44,11 @@ module use_cases::game {
 
     fun fund_user_agent_100(publisher: &signer, agent: &Agent) {
         assert!(signer::address_of(publisher) == @0x007, ADMIN_ONLY);
-        coin::transfer<VirtualCoin>(publisher, agent::agent_address(agent), 100);
+        coin_store::fund<VirtualCoin>(publisher, agent, 100);
     }
 
     #[test_only]
-    fun mint_nft_for_agent(publisher: &signer, agent: &Agent)
+    fun mint_nft_for_agent_consume_100(publisher: &signer, agent: &Agent)
     acquires Game {
         let pub_addr = signer::address_of(publisher);
         assert!(pub_addr == @0x007, ADMIN_ONLY);
@@ -60,6 +62,7 @@ module use_cases::game {
         let signer_ref = smart_table::borrow(&game.user_table, *agent);
         let agent_signer = agent::generate_signer(signer_ref);
         token::direct_transfer(publisher, &agent_signer, token_id, 1);
+        coin_store::consume<VirtualCoin>(signer_ref, 100);
     }
 
     #[test_only]
@@ -78,7 +81,8 @@ module use_cases::game {
 
         let agent = create_user_agent(publisher, b"myname");
         fund_user_agent_100(publisher, &agent);
-        assert!(coin::balance<VirtualCoin>(agent::agent_address(&agent)) == 100, 0);
-        mint_nft_for_agent(publisher, &agent);
+        assert!(coin_store::balance<VirtualCoin>(&agent) == 100, 0);
+        mint_nft_for_agent_consume_100(publisher, &agent);
+        assert!(coin_store::balance<VirtualCoin>(&agent) == 0, 1);
     }
 }
