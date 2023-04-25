@@ -8,19 +8,21 @@ module use_cases::virtual_coin {
     use std::signer;
     use aptos_framework::coin::{Self, BurnCapability, MintCapability};
 
-    /// Account does not have mint capability
     const ENO_CAPABILITIES: u64 = 1;
 
     struct VirtualCoin has key {}
 
-    struct MintCapStore has key {
+    struct CapStore has key {
         mint_cap: MintCapability<VirtualCoin>,
+        burn_cap: BurnCapability<VirtualCoin>
     }
 
-    public fun initialize(publisher: &signer)
-    : (BurnCapability<VirtualCoin>, MintCapability<VirtualCoin>) {
-
-        let (burn_cap, freeze_cap, mint_cap) = coin::initialize<VirtualCoin>(
+    public fun initialize(publisher: &signer) {
+        let (
+            burn_cap, 
+            freeze_cap, 
+            mint_cap
+        ) = coin::initialize<VirtualCoin>(
             publisher,
             string::utf8(b"Virtual Coin"),
             string::utf8(b"V"),
@@ -28,16 +30,19 @@ module use_cases::virtual_coin {
             true, /* monitor_supply */
         );
 
-        // Aptos framework needs mint cap to mint coins to initial validators. This will be revoked once the validators
-        // have been initialized.
-        move_to(publisher, MintCapStore { mint_cap });
+        move_to(
+            publisher, 
+            CapStore{ 
+                mint_cap, 
+                burn_cap 
+            }
+        );
 
         coin::destroy_freeze_cap(freeze_cap);
-        (burn_cap, mint_cap)
     }
 
     public fun has_mint_capability(account: &signer): bool {
-        exists<MintCapStore>(signer::address_of(account))
+        exists<CapStore>(signer::address_of(account))
     }
 
     /// Create new coins and deposit them into dst_addr's account.
@@ -45,15 +50,15 @@ module use_cases::virtual_coin {
         account: &signer,
         dst_addr: address,
         amount: u64,
-    ) acquires MintCapStore {
+    ) acquires CapStore {
         let account_addr = signer::address_of(account);
 
         assert!(
-            exists<MintCapStore>(account_addr),
+            exists<CapStore>(account_addr),
             error::not_found(ENO_CAPABILITIES),
         );
 
-        let mint_cap = &borrow_global<MintCapStore>(account_addr).mint_cap;
+        let mint_cap = &borrow_global<CapStore>(account_addr).mint_cap;
         let coins_minted = coin::mint<VirtualCoin>(amount, mint_cap);
         coin::deposit<VirtualCoin>(dst_addr, coins_minted);
     }
