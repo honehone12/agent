@@ -3,9 +3,6 @@ module agent::agent {
     use std::error;
     use std::option::{Self, Option};
     use aptos_framework::account::{Self, SignerCapability};
-    use aptos_framework::coin;
-    use aptos_token::token;
-    use aptos_framework::aptos_coin::AptosCoin;
 
     const E_AGENT_EXISTS: u64 = 1;
     const E_AGENT_NOT_EXISTS: u64 = 2;
@@ -17,6 +14,7 @@ module agent::agent {
 
     #[resource_group_member(group = AgentGroup)]
     struct AgentCore has key {
+        publisher: address,
         signer_capability: SignerCapability,
         owner: Option<address>
     }
@@ -31,6 +29,18 @@ module agent::agent {
 
     struct SignerRef has store, drop {
         inner: address
+    }
+
+    public fun agent_publisher(agent: &Agent): address
+    acquires AgentCore {
+        let core = borrow_global<AgentCore>(agent.inner);
+        core.publisher
+    }
+
+    public fun agnet_owner(agent: &Agent): Option<address>
+    acquires AgentCore {
+        let core = borrow_global<AgentCore>(agent.inner);
+        core.owner
     }
 
     public fun agent_address(agent: &Agent): address {
@@ -59,25 +69,9 @@ module agent::agent {
     public fun signer_address(ref: &SignerRef): address {
         ref.inner
     }
-
-    public fun register_coin<TCoin>(ref: &SignerRef)
-    acquires AgentCore {
-        let agent_signer = generate_signer(ref);
-        coin::register<TCoin>(&agent_signer); 
-    }
-
-    public fun register_apt(ref: &SignerRef)
-    acquires AgentCore {
-        register_coin<AptosCoin>(ref);
-    }
-
-    public fun register_token(ref: &SignerRef)
-    acquires AgentCore {
-        let agent_signer = generate_signer(ref);
-        token::initialize_token_store(&agent_signer);
-    }
     
-    public fun create_agent(publisher: &signer, seed: vector<u8>): ConstructorRef {
+    public fun create_agent(publisher: &signer, seed: vector<u8>)
+    : ConstructorRef {
         let (
             resource_signer, 
             signer_cap
@@ -86,10 +80,12 @@ module agent::agent {
         assert!(!exists<AgentCore>(resource_addr), error::already_exists(E_AGENT_EXISTS));
 
         let agent_core = AgentCore {
+            publisher: signer::address_of(publisher),
             signer_capability: signer_cap,
             owner: option::none()
         };
         move_to(&resource_signer, agent_core);
+
         ConstructorRef{inner: resource_addr}
     }
 
@@ -99,11 +95,15 @@ module agent::agent {
         option::fill(&mut core.owner, owner);
     }
 
-    public fun fund_coin<TCoin>(funder: &signer, agent: Agent, amount: u64) {
-        coin::transfer<TCoin>(funder, agent.inner, amount);
+    #[test(publisher = @0xcafe)]
+    fun test_create(publisher: &signer) {
+        create_agent(publisher, b"username");
     }
 
-    public fun coin_balance<TCoin>(agent: Agent): u64 {
-        coin::balance<TCoin>(agent.inner)
+    #[test(publisher = @0xcafe)]
+    #[expected_failure]
+    fun test_fail_create_twice(publisher: &signer) {
+        create_agent(publisher, b"username");
+        create_agent(publisher, b"username");
     }
 }

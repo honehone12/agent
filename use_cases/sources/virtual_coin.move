@@ -2,7 +2,7 @@
 // modified from https://github.com/move-language/move/tree/main/language/documentation/tutorial
 //  and https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/framework/aptos-framework/sources/aptos_coin.move
 
-module agent::v_aptos_coin {
+module use_cases::virtual_coin {
     use std::string;
     use std::error;
     use std::signer;
@@ -11,20 +11,20 @@ module agent::v_aptos_coin {
     /// Account does not have mint capability
     const ENO_CAPABILITIES: u64 = 1;
 
-    struct VAptosCoin has key {}
+    struct VirtualCoin has key {}
 
     struct MintCapStore has key {
-        mint_cap: MintCapability<VAptosCoin>,
+        mint_cap: MintCapability<VirtualCoin>,
     }
 
     public fun initialize(publisher: &signer)
-    : (BurnCapability<VAptosCoin>, MintCapability<VAptosCoin>) {
+    : (BurnCapability<VirtualCoin>, MintCapability<VirtualCoin>) {
 
-        let (burn_cap, freeze_cap, mint_cap) = coin::initialize<VAptosCoin>(
+        let (burn_cap, freeze_cap, mint_cap) = coin::initialize<VirtualCoin>(
             publisher,
-            string::utf8(b"VAptos Coin"),
-            string::utf8(b"VAPT"),
-            8, /* decimals */
+            string::utf8(b"Virtual Coin"),
+            string::utf8(b"V"),
+            0, /* decimals */
             true, /* monitor_supply */
         );
 
@@ -54,7 +54,7 @@ module agent::v_aptos_coin {
         );
 
         let mint_cap = &borrow_global<MintCapStore>(account_addr).mint_cap;
-        let coins_minted = coin::mint<VAptosCoin>(amount, mint_cap);
-        coin::deposit<VAptosCoin>(dst_addr, coins_minted);
+        let coins_minted = coin::mint<VirtualCoin>(amount, mint_cap);
+        coin::deposit<VirtualCoin>(dst_addr, coins_minted);
     }
 }
