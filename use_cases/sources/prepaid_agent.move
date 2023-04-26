@@ -25,7 +25,7 @@ module use_cases::prepaid_agent {
         )
     }
 
-    fun create_user_agent(publisher: &signer, username: vector<u8>): Agent
+    fun create_user_agent(publisher: &signer, owner: address, username: vector<u8>): Agent
     acquires App {
         let pub_addr = signer::address_of(publisher);
         assert!(pub_addr == @0x007, E_ADMIN_ONLY);
@@ -33,6 +33,7 @@ module use_cases::prepaid_agent {
         let agent = agent::agent_from_constructor_ref(&constructor);
         let signer_ref = agent::generate_signer_ref(&constructor);
         let app = borrow_global_mut<App>(pub_addr);
+        agent::set_owner(&signer_ref, owner);
         coin_store::register<AptosCoin>(&signer_ref, option::some(TIME_LOCK_SECONDS));
         smart_table::add(&mut app.user_table, agent, signer_ref);
         agent
@@ -95,7 +96,8 @@ module use_cases::prepaid_agent {
         set_up_test(publisher, user, framework);
         init_module(publisher);
 
-        let agent = create_user_agent(publisher, b"username");
+        let agent = create_user_agent(publisher, signer::address_of(user), b"username");
+
         coin_store::fund<AptosCoin>(user, &agent, 100_000_000);
         assert!(coin_store::balance<AptosCoin>(&agent) == 100_000_000, 0);
         assert!(coin::balance<AptosCoin>(signer::address_of(user)) == 900_000_000, 1);

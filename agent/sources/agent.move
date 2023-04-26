@@ -41,6 +41,12 @@ module agent::agent {
         core.publisher
     }
 
+    public fun has_on_chain_owner(agent: &Agent): bool
+    acquires AgentCore {
+        let core = borrow_global<AgentCore>(agent.inner);
+        option::is_some(&core.owner)
+    }
+
     public fun agnet_owner(agent: &Agent): Option<address>
     acquires AgentCore {
         let core = borrow_global<AgentCore>(agent.inner);

@@ -6,10 +6,12 @@ module agent::token_store {
 
     const E_ZERO_TOKEN: u64 = 1;
 
+    #[resource_group_member(group = AgentGroup)]
     struct TokenStore has key {
         tokens: SmartTable<TokenId, Token>
     }
 
+    #[resource_group_member(group = AgentGroup)]
     struct Bin has key {
         tokens: SmartTable<TokenId, Token>
     }

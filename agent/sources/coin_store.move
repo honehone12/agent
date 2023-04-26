@@ -7,6 +7,7 @@ module agent::coin_store {
     use agent::agent::{Self, AgentGroup, SignerRef, Agent};
 
     const E_TIME_LOCK_NOT_INITILIZED: u64 = 1;
+    const E_OWNER_NOT_INITIALIZED: u64 = 2;
 
     #[resource_group_member(group = AgentGroup)]
     struct CoinStore<phantom TCoin> has key {
@@ -89,7 +90,14 @@ module agent::coin_store {
     public fun reserve<TCoin>(ref: &SignerRef, amount: u64)
     acquires CoinStore, TimeLock {
         let agent_addr = agent::signer_address(ref);
-        
+        assert!(
+            exists<TimeLock<TCoin>>(agent_addr), 
+            error::not_found(E_TIME_LOCK_NOT_INITILIZED)
+        );    
+        assert!(
+            agent::has_on_chain_owner(&agent::address_to_agent(agent_addr)),
+            error::permission_denied(E_OWNER_NOT_INITIALIZED)
+        );
         let store = borrow_global_mut<CoinStore<TCoin>>(agent_addr);
         let reserve_coin = coin::extract<TCoin>(&mut store.coin, amount);
         let now = timestamp::now_seconds();       
@@ -128,7 +136,10 @@ module agent::coin_store {
     public fun unlock_oldest<TCoin>(ref: &SignerRef): Option<Coin<TCoin>>
     acquires TimeLock {
         let signer_addr = agent::signer_address(ref);
-        assert!(exists<TimeLock<TCoin>>(signer_addr), error::not_found(E_TIME_LOCK_NOT_INITILIZED));
+        assert!(
+            exists<TimeLock<TCoin>>(signer_addr), 
+            error::not_found(E_TIME_LOCK_NOT_INITILIZED)
+        );
         let time_lock = borrow_global_mut<TimeLock<TCoin>>(signer_addr);
         if (vector::length(&time_lock.locks) > 0) {
             let expiration = vector::borrow(&time_lock.locks, 0).expiration;
@@ -143,5 +154,9 @@ module agent::coin_store {
             };
         };
         option::none() 
+    }
+
+    public fun drain() {
+        
     }
 }
