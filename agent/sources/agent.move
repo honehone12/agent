@@ -31,6 +31,10 @@ module agent::agent {
         inner: address
     }
 
+    public fun is_agent(location: address): bool {
+        exists<AgentCore>(location)
+    }
+
     public fun agent_publisher(agent: &Agent): address
     acquires AgentCore {
         let core = borrow_global<AgentCore>(agent.inner);
@@ -70,8 +74,13 @@ module agent::agent {
         ref.inner
     }
     
-    public fun create_agent(publisher: &signer, seed: vector<u8>)
-    : ConstructorRef {
+    public fun set_owner(ref: &SignerRef, owner: address)
+    acquires AgentCore {
+        let core = borrow_global_mut<AgentCore>(signer_address(ref));
+        option::fill(&mut core.owner, owner);
+    }
+
+    public fun create_agent(publisher: &signer, seed: vector<u8>): ConstructorRef {
         let (
             resource_signer, 
             signer_cap
@@ -87,12 +96,6 @@ module agent::agent {
         move_to(&resource_signer, agent_core);
 
         ConstructorRef{inner: resource_addr}
-    }
-
-    public fun set_owner(ref: &SignerRef, owner: address)
-    acquires AgentCore {
-        let core = borrow_global_mut<AgentCore>(signer_address(ref));
-        option::fill(&mut core.owner, owner);
     }
 
     #[test(publisher = @0xcafe)]

@@ -1,16 +1,16 @@
-module use_cases::game {
+module use_cases::preview_agent {
     use std::signer;
     use std::option;
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_framework::coin;
-    use aptos_token::token;
     use agent::agent::{Self, Agent, SignerRef};
     use agent::coin_store;
+    use agent::token_store;
     use use_cases::virtual_coin::{Self, VirtualCoin};
 
     const ADMIN_ONLY: u64 = 1;
 
-    struct Game has key {
+    struct App has key {
         user_table: SmartTable<Agent, SignerRef>
     }
 
@@ -21,24 +21,23 @@ module use_cases::game {
 
         move_to(
             publisher,
-            Game{
+            App{
                 user_table: smart_table::new()
             }
         );
     }
 
     fun create_user_agent(publisher: &signer, username: vector<u8>): Agent
-    acquires Game {
+    acquires App {
         let pub_addr = signer::address_of(publisher);
         assert!(pub_addr == @0x007, ADMIN_ONLY);
         let constructor = agent::create_agent(publisher, username);
         let agent = agent::agent_from_constructor_ref(&constructor);
         let signer_ref = agent::generate_signer_ref(&constructor);
-        let agent_signer = agent::generate_signer(&signer_ref);
-        let game = borrow_global_mut<Game>(pub_addr);
+        let app = borrow_global_mut<App>(pub_addr);
         coin_store::register<VirtualCoin>(&signer_ref, option::none());
-        token::initialize_token_store(&agent_signer);
-        smart_table::add(&mut game.user_table, agent, signer_ref);
+        token_store::initialize_token_store(&signer_ref);
+        smart_table::add(&mut app.user_table, agent, signer_ref);
         agent
     }
 
@@ -48,8 +47,11 @@ module use_cases::game {
     }
 
     #[test_only]
-    fun mint_nft_for_agent_consume_100(publisher: &signer, agent: &Agent)
-    acquires Game {
+    use aptos_token::token::{Self, TokenId};
+
+    #[test_only]
+    fun mint_nft_for_agent_consume_100(publisher: &signer, agent: &Agent): TokenId 
+    acquires App {
         let pub_addr = signer::address_of(publisher);
         assert!(pub_addr == @0x007, ADMIN_ONLY);
         let token_id = token::create_collection_and_token(
@@ -58,11 +60,12 @@ module use_cases::game {
             vector[false, false, false],
             vector[false, false, false, false, false],
         );
-        let game = borrow_global<Game>(pub_addr);
-        let signer_ref = smart_table::borrow(&game.user_table, *agent);
-        let agent_signer = agent::generate_signer(signer_ref);
-        token::direct_transfer(publisher, &agent_signer, token_id, 1);
+        let token = token::withdraw_token(publisher, token_id, 1);
+        let app = borrow_global<App>(pub_addr);
+        let signer_ref = smart_table::borrow(&app.user_table, *agent);
+        token_store::fund(signer_ref, token);
         coin_store::consume<VirtualCoin>(signer_ref, 100);
+        token_id
     }
 
     #[test_only]
@@ -75,14 +78,15 @@ module use_cases::game {
 
     #[test(publisher = @0x007)]
     fun test_main(publisher: &signer)
-    acquires Game {
+    acquires App {
         set_up_test(publisher);
         init_module(publisher);
 
         let agent = create_user_agent(publisher, b"myname");
         fund_user_agent_100(publisher, &agent);
         assert!(coin_store::balance<VirtualCoin>(&agent) == 100, 0);
-        mint_nft_for_agent_consume_100(publisher, &agent);
+        let id = mint_nft_for_agent_consume_100(publisher, &agent);
         assert!(coin_store::balance<VirtualCoin>(&agent) == 0, 1);
+        assert!(token_store::balance(&agent, &id) == 1, 2);
     }
 }

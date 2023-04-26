@@ -1,4 +1,5 @@
 module agent::coin_store {
+    use std::error;
     use std::vector;
     use std::option::{Self, Option};
     use aptos_framework::coin::{Self, Coin};
@@ -88,6 +89,7 @@ module agent::coin_store {
     public fun reserve<TCoin>(ref: &SignerRef, amount: u64)
     acquires CoinStore, TimeLock {
         let agent_addr = agent::signer_address(ref);
+        
         let store = borrow_global_mut<CoinStore<TCoin>>(agent_addr);
         let reserve_coin = coin::extract<TCoin>(&mut store.coin, amount);
         let now = timestamp::now_seconds();       
@@ -97,5 +99,49 @@ module agent::coin_store {
             expiration: now + time_lock.lock_seconds
         };
         vector::push_back(&mut time_lock.locks, lock);
+    }
+
+    public fun num_locked<TCoin>(agent: &Agent): u64
+    acquires TimeLock {
+        let agent_addr = agent::agent_address(agent);
+        if (exists<TimeLock<TCoin>>(agent_addr)) {
+            let time_lock = borrow_global<TimeLock<TCoin>>(agent_addr);
+            vector::length(&time_lock.locks)
+        } else {
+            0
+        }
+    }
+
+    public fun oldest_expiration_seconds<TCoin>(agent: &Agent): Option<u64>
+    acquires TimeLock {
+        let agent_addr = agent::agent_address(agent);
+        if (exists<TimeLock<TCoin>>(agent_addr)) {
+            let time_lock = borrow_global<TimeLock<TCoin>>(agent_addr);
+            if  (vector::length(&time_lock.locks) > 0) {
+                let lock = vector::borrow(&time_lock.locks, 0);
+                return option::some(lock.expiration)
+            }
+        };
+        option::none()
+    }
+
+    public fun unlock_oldest<TCoin>(ref: &SignerRef): Option<Coin<TCoin>>
+    acquires TimeLock {
+        let signer_addr = agent::signer_address(ref);
+        assert!(exists<TimeLock<TCoin>>(signer_addr), error::not_found(E_TIME_LOCK_NOT_INITILIZED));
+        let time_lock = borrow_global_mut<TimeLock<TCoin>>(signer_addr);
+        if (vector::length(&time_lock.locks) > 0) {
+            let expiration = vector::borrow(&time_lock.locks, 0).expiration;
+            let now = timestamp::now_seconds();
+            if (now > expiration) {
+                let lock = vector::remove(&mut time_lock.locks, 0);
+                let Lock{
+                    coin,
+                    expiration: _
+                } = lock;
+                return option::some(coin)
+            };
+        };
+        option::none() 
     }
 }
