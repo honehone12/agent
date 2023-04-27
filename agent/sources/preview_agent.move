@@ -1,17 +1,21 @@
-module use_cases::preview_agent {
+#[test_only]
+module agent::preview_agent {
     use std::signer;
-    use std::option;
     use aptos_std::smart_table::{Self, SmartTable};
+    use aptos_framework::account;
     use aptos_framework::coin;
-    use agent::agent::{Self, Agent, SignerRef};
+    use aptos_framework::object::{Self, Object};
+    use aptos_token::token::{Self, TokenId};
+    use agent::agent::{Self, AgentCore, AgentRef};
     use agent::coin_store;
     use agent::token_store;
-    use use_cases::virtual_coin::{Self, VirtualCoin};
+    use agent::virtual_coin::{Self, VirtualCoin};
 
     const ADMIN_ONLY: u64 = 1;
+    const TIME_LOCK_SECONDS: u64 = 259200; // 3days
 
     struct App has key {
-        user_table: SmartTable<Agent, SignerRef>
+        user_table: SmartTable<Object<AgentCore>, AgentRef>
     }
 
     fun init_module(publisher: &signer) {
@@ -27,30 +31,27 @@ module use_cases::preview_agent {
         );
     }
 
-    fun create_user_agent(publisher: &signer, username: vector<u8>): Agent
+    fun create_user_agent(publisher: &signer, username: vector<u8>): Object<AgentCore>
     acquires App {
         let pub_addr = signer::address_of(publisher);
         assert!(pub_addr == @0x007, ADMIN_ONLY);
-        let constructor = agent::create_agent(publisher, username);
-        let agent = agent::agent_from_constructor_ref(&constructor);
-        let signer_ref = agent::generate_signer_ref(&constructor);
+        let (
+            agent_signer, agent_ref
+        )  = agent::create_agent(publisher, username);
         let app = borrow_global_mut<App>(pub_addr);
-        coin_store::register<VirtualCoin>(&signer_ref, option::none());
-        token_store::initialize_token_store(&signer_ref);
-        smart_table::add(&mut app.user_table, agent, signer_ref);
-        agent
+        let obj = object::address_to_object<AgentCore>(signer::address_of(&agent_signer));
+        coin_store::register<VirtualCoin>(&agent_signer, TIME_LOCK_SECONDS);
+        token_store::initialize_token_store(&agent_signer);
+        smart_table::add(&mut app.user_table, obj, agent_ref);
+        obj
     }
 
-    fun fund_user_agent_100(publisher: &signer, agent: &Agent) {
+    fun fund_user_agent_100(publisher: &signer, object: &Object<AgentCore>) {
         assert!(signer::address_of(publisher) == @0x007, ADMIN_ONLY);
-        coin_store::fund<VirtualCoin>(publisher, agent, 100);
+        coin_store::fund<VirtualCoin>(publisher, object, 100);
     }
 
-    #[test_only]
-    use aptos_token::token::{Self, TokenId};
-
-    #[test_only]
-    fun mint_nft_for_agent_consume_100(publisher: &signer, agent: &Agent): TokenId 
+    fun mint_nft_for_agent_consume_100(publisher: &signer, object: &Object<AgentCore>): TokenId 
     acquires App {
         let pub_addr = signer::address_of(publisher);
         assert!(pub_addr == @0x007, ADMIN_ONLY);
@@ -60,18 +61,13 @@ module use_cases::preview_agent {
             vector[false, false, false],
             vector[false, false, false, false, false],
         );
-        let token = token::withdraw_token(publisher, token_id, 1);
         let app = borrow_global<App>(pub_addr);
-        let signer_ref = smart_table::borrow(&app.user_table, *agent);
-        token_store::fund(signer_ref, token);
-        coin_store::consume<VirtualCoin>(signer_ref, 100);
+        let agent_ref = smart_table::borrow(&app.user_table, *object);
+        token_store::fund(publisher, object, &token_id, 1);
+        coin_store::consume<VirtualCoin>(agent_ref, 100);
         token_id
     }
 
-    #[test_only]
-    use aptos_framework::account;
-
-    #[test_only]
     fun set_up_test(publisher: &signer) {
         account::create_account_for_test(signer::address_of(publisher));
     }

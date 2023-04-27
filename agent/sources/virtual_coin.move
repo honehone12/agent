@@ -2,7 +2,8 @@
 // modified from https://github.com/move-language/move/tree/main/language/documentation/tutorial
 //  and https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/framework/aptos-framework/sources/aptos_coin.move
 
-module use_cases::virtual_coin {
+#[test_only]
+module agent::virtual_coin {
     use std::string;
     use std::error;
     use std::signer;

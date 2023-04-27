@@ -1,33 +1,16 @@
 module agent::agent {
-    use std::signer;
-    use std::error;
     use std::option::{Self, Option};
-    use aptos_framework::account::{Self, SignerCapability};
-
-    const E_AGENT_EXISTS: u64 = 1;
-    const E_AGENT_NOT_EXISTS: u64 = 2;
-    const E_NONCE_OVERFLOW: u64 = 3;
-    const E_INVALID_NONCE: u64 = 4;
+    use aptos_framework::object::{Self, Object};
 
     #[resource_group(scope = global)]
     struct AgentGroup {}
 
     #[resource_group_member(group = AgentGroup)]
     struct AgentCore has key {
-        publisher: address,
-        signer_capability: SignerCapability,
         owner: Option<address>
     }
 
-    struct Agent has store, copy, drop {
-        inner: address
-    }
-
-    struct ConstructorRef has drop {
-        inner: address
-    }
-
-    struct SignerRef has store, drop {
+    struct AgentRef has store, drop {
         inner: address
     }
 
@@ -35,73 +18,39 @@ module agent::agent {
         exists<AgentCore>(location)
     }
 
-    public fun agent_publisher(agent: &Agent): address
-    acquires AgentCore {
-        let core = borrow_global<AgentCore>(agent.inner);
-        core.publisher
+    public fun agent_publisher(object: &Object<AgentCore>): address {
+        object::owner(*object)
     }
 
-    public fun has_on_chain_owner(agent: &Agent): bool
+    public fun agent_owner(object: &Object<AgentCore>): Option<address>
     acquires AgentCore {
-        let core = borrow_global<AgentCore>(agent.inner);
-        option::is_some(&core.owner)
-    }
-
-    public fun agnet_owner(agent: &Agent): Option<address>
-    acquires AgentCore {
-        let core = borrow_global<AgentCore>(agent.inner);
+        let core = borrow_global<AgentCore>(object::object_address(object));
         core.owner
     }
 
-    public fun agent_address(agent: &Agent): address {
+    public fun agent_address(agent: &AgentRef): address {
         agent.inner
     }
-
-    public fun address_to_agent(agent_address: address): Agent {
-        assert!(exists<AgentCore>(agent_address), error::not_found(E_AGENT_NOT_EXISTS));
-        Agent{inner: agent_address}
-    }
-
-    public fun agent_from_constructor_ref(constructor: &ConstructorRef): Agent {
-        Agent{inner: constructor.inner}
-    }
-
-    public fun generate_signer_ref(constructor: &ConstructorRef): SignerRef {
-        SignerRef{inner: constructor.inner}
-    }
-
-    public fun generate_signer(ref: &SignerRef): signer
-    acquires AgentCore {
-        let core = borrow_global_mut<AgentCore>(ref.inner);
-        account::create_signer_with_capability(&core.signer_capability)
-    }
-
-    public fun signer_address(ref: &SignerRef): address {
-        ref.inner
-    }
     
-    public fun set_owner(ref: &SignerRef, owner: address)
+    public fun set_owner(ref: &AgentRef, owner: address)
     acquires AgentCore {
-        let core = borrow_global_mut<AgentCore>(signer_address(ref));
+        let core = borrow_global_mut<AgentCore>(agent_address(ref));
         option::fill(&mut core.owner, owner);
     }
 
-    public fun create_agent(publisher: &signer, seed: vector<u8>): ConstructorRef {
-        let (
-            resource_signer, 
-            signer_cap
-        ) = account::create_resource_account(publisher, seed);
-        let resource_addr = signer::address_of(&resource_signer);
-        assert!(!exists<AgentCore>(resource_addr), error::already_exists(E_AGENT_EXISTS));
+    public fun create_agent(publisher: &signer, seed: vector<u8>): (signer, AgentRef) {
+        let obj_constructor = object::create_named_object(publisher, seed);
+        let obj_addr = object::address_from_constructor_ref(&obj_constructor);
+        let obj_signer = object::generate_signer(&obj_constructor);
+        let transfer_ref = object::generate_transfer_ref(&obj_constructor);
+        object::disable_ungated_transfer(&transfer_ref);
 
         let agent_core = AgentCore {
-            publisher: signer::address_of(publisher),
-            signer_capability: signer_cap,
             owner: option::none()
         };
-        move_to(&resource_signer, agent_core);
+        move_to(&obj_signer, agent_core);
 
-        ConstructorRef{inner: resource_addr}
+        (obj_signer, AgentRef{inner: obj_addr})
     }
 
     #[test(publisher = @0xcafe)]

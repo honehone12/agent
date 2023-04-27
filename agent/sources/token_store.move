@@ -1,10 +1,13 @@
 module agent::token_store {
     use std::error;
+    use std::signer;
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_token::token::{Self, TokenId, Token};
-    use agent::agent::{Self, SignerRef, Agent};
+    use aptos_framework::object::{Self, Object};
+    use agent::agent::{Self, AgentRef, AgentCore};
 
     const E_ZERO_TOKEN: u64 = 1;
+    const E_NOT_AGENT: u64 = 2;
 
     #[resource_group_member(group = AgentGroup)]
     struct TokenStore has key {
@@ -16,43 +19,42 @@ module agent::token_store {
         tokens: SmartTable<TokenId, Token>
     }
 
-    public fun initialize_token_store(ref: &SignerRef) {
-        let agent_addr = agent::signer_address(ref);
-        let agent_signer = agent::generate_signer(ref);
-        if (!exists<TokenStore>(agent_addr)) {
-            move_to(
-                &agent_signer,
-                TokenStore{
-                    tokens: smart_table::new()
-                }
-            );
-        };
-        if (!exists<Bin>(agent_addr)) {
-            move_to(
-                &agent_signer,
-                Bin{
-                    tokens: smart_table::new()
-                }
-            );
-        };
+    public fun initialize_token_store(agent_signer: &signer) {
+        assert!(
+            agent::is_agent(signer::address_of(agent_signer)), 
+            error::permission_denied(E_NOT_AGENT)
+        );
+
+        move_to(
+            agent_signer,
+            TokenStore{
+                tokens: smart_table::new()
+            }
+        );
+        move_to(
+            agent_signer,
+            Bin{
+                tokens: smart_table::new()
+            }
+        );
     }
 
-    public fun fund(ref: &SignerRef, token: Token)
+    public fun fund(funder: &signer, object: &Object<AgentCore>, id: &TokenId, amount: u64)
     acquires TokenStore {
-        let store = borrow_global_mut<TokenStore>(agent::signer_address(ref));
-        let token_id = token::token_id(&token);
-        if (!smart_table::contains(&store.tokens,  *token_id)) {
+        let token = token::withdraw_token(funder, *id, amount);
+        let store = borrow_global_mut<TokenStore>(object::object_address(object));
+        if (!smart_table::contains(&store.tokens,  *id)) {
             assert!(token::get_token_amount(&token) > 0, error::invalid_argument(E_ZERO_TOKEN));
-            smart_table::add(&mut store.tokens, *token_id, token);
+            smart_table::add(&mut store.tokens, *id, token);
         } else {
-            let stored = smart_table::borrow_mut(&mut store.tokens, *token_id);
+            let stored = smart_table::borrow_mut(&mut store.tokens, *id);
             token::merge(stored, token);
         };
     }
 
-    public fun balance(agent: &Agent, id: &TokenId): u64
+    public fun balance(object: &Object<AgentCore>, id: &TokenId): u64
     acquires TokenStore {
-        let agent_addr = agent::agent_address(agent);
+        let agent_addr = object::object_address(object);
         if (exists<TokenStore>(agent_addr)) {
             let store = borrow_global<TokenStore>(agent_addr);
             if (smart_table::contains(&store.tokens, *id)) {
@@ -63,9 +65,9 @@ module agent::token_store {
         0 
     }
 
-    public fun consume(agent: &Agent, id: &TokenId, amount: u64)
+    public fun consume(ref: &AgentRef, id: &TokenId, amount: u64)
     acquires TokenStore, Bin {
-        let agent_addr = agent::agent_address(agent);
+        let agent_addr = agent::agent_address(ref);
         let store = borrow_global_mut<TokenStore>(agent_addr);
         let stored = smart_table::borrow_mut(&mut store.tokens, *id);
         let consumed = token::split(stored, amount);
