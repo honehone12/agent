@@ -1,0 +1,11 @@
+[package]
+name = 'Agent'
+version = '1.0.0'
+
+[dependencies]
+AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework" }
+AptosToken = { local = "../../aptos-core/aptos-move/framework/aptos-token" }
+AptosTokenObjects = { local = "../../aptos-core/aptos-move/framework/aptos-token-objects" }
+
+[addresses]
+agent = "0xcafe"

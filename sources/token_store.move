@@ -4,7 +4,7 @@ module agent::token_store {
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_token::token::{Self, TokenId, Token};
     use aptos_framework::object::{Self, Object};
-    use agent::agent::{Self, AgentRef, AgentCore};
+    use agent::agent::{Self, AgentRef, AgentCore, AgentGroup};
 
     const E_ZERO_TOKEN: u64 = 1;
     const E_NOT_AGENT: u64 = 2;

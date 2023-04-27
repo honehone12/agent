@@ -5,7 +5,7 @@ module agent::coin_store {
     use aptos_framework::coin::{Self, Coin};
     use aptos_framework::timestamp;
     use aptos_framework::object::{Self, Object};
-    use agent::agent::{Self, AgentRef, AgentCore};
+    use agent::agent::{Self, AgentRef, AgentCore, AgentGroup};
 
     const E_OWNER_NOT_INITIALIZED: u64 = 1;
     const E_NOT_OWNER: u64 = 2;

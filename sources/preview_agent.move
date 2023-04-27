@@ -34,7 +34,7 @@ module agent::preview_agent {
     fun create_user_agent(publisher: &signer, username: vector<u8>): Object<AgentCore>
     acquires App {
         let pub_addr = signer::address_of(publisher);
-        assert!(pub_addr == @0x007, ADMIN_ONLY);
+        assert!(pub_addr == @0xcafe, ADMIN_ONLY);
         let (
             agent_signer, agent_ref
         )  = agent::create_agent(publisher, username);
@@ -47,14 +47,14 @@ module agent::preview_agent {
     }
 
     fun fund_user_agent_100(publisher: &signer, object: &Object<AgentCore>) {
-        assert!(signer::address_of(publisher) == @0x007, ADMIN_ONLY);
+        assert!(signer::address_of(publisher) == @0xcafe, ADMIN_ONLY);
         coin_store::fund<VirtualCoin>(publisher, object, 100);
     }
 
     fun mint_nft_for_agent_consume_100(publisher: &signer, object: &Object<AgentCore>): TokenId 
     acquires App {
         let pub_addr = signer::address_of(publisher);
-        assert!(pub_addr == @0x007, ADMIN_ONLY);
+        assert!(pub_addr == @0xcafe, ADMIN_ONLY);
         let token_id = token::create_collection_and_token(
             publisher, 1, 10000, 1,
             vector[], vector[], vector[],
@@ -72,7 +72,7 @@ module agent::preview_agent {
         account::create_account_for_test(signer::address_of(publisher));
     }
 
-    #[test(publisher = @0x007)]
+    #[test(publisher = @0xcafe)]
     fun test_main(publisher: &signer)
     acquires App {
         set_up_test(publisher);
