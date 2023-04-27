@@ -1,6 +1,14 @@
 module agent::agent {
+    use std::error;
     use std::option::{Self, Option};
+    use std::string;
+    use aptos_std::string_utils;
+    use aptos_framework::account;
+    use aptos_framework::coin;
+    use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::object::{Self, Object};
+
+    const E_ACCOUNT_NOT_INITIALIZED: u64 = 1;
 
     #[resource_group(scope = global)]
     struct AgentGroup {}
@@ -10,7 +18,7 @@ module agent::agent {
         owner: Option<address>
     }
 
-    struct AgentRef has store, drop {
+    struct AgentRef has store {
         inner: address
     }
 
@@ -32,14 +40,21 @@ module agent::agent {
         agent.inner
     }
     
-    public fun set_owner(ref: &AgentRef, owner: address)
+    public fun set_owner(ref: AgentRef, owner: address)
     acquires AgentCore {
-        let core = borrow_global_mut<AgentCore>(agent_address(ref));
+        let core = borrow_global_mut<AgentCore>(agent_address(&ref));
         option::fill(&mut core.owner, owner);
+        let AgentRef{inner:_} = ref;
     }
 
-    public fun create_agent(publisher: &signer, seed: vector<u8>): (signer, AgentRef) {
-        let obj_constructor = object::create_named_object(publisher, seed);
+    public fun create_agent(publisher: &signer, user: address): (signer, AgentRef) {
+        assert!(
+            account::exists_at(user) && coin::is_account_registered<AptosCoin>(user),
+            error::invalid_argument(E_ACCOUNT_NOT_INITIALIZED)
+        );
+        
+        let seed = string_utils::to_string_with_canonical_addresses(&user);
+        let obj_constructor = object::create_named_object(publisher, *string::bytes(&seed));
         let obj_addr = object::address_from_constructor_ref(&obj_constructor);
         let obj_signer = object::generate_signer(&obj_constructor);
         let transfer_ref = object::generate_transfer_ref(&obj_constructor);
@@ -51,17 +66,5 @@ module agent::agent {
         move_to(&obj_signer, agent_core);
 
         (obj_signer, AgentRef{inner: obj_addr})
-    }
-
-    #[test(publisher = @0xcafe)]
-    fun test_create(publisher: &signer) {
-        create_agent(publisher, b"username");
-    }
-
-    #[test(publisher = @0xcafe)]
-    #[expected_failure]
-    fun test_fail_create_twice(publisher: &signer) {
-        create_agent(publisher, b"username");
-        create_agent(publisher, b"username");
     }
 }

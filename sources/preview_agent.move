@@ -31,13 +31,13 @@ module agent::preview_agent {
         );
     }
 
-    fun create_user_agent(publisher: &signer, username: vector<u8>): Object<AgentCore>
+    fun create_user_agent(publisher: &signer, user: address): Object<AgentCore>
     acquires App {
         let pub_addr = signer::address_of(publisher);
         assert!(pub_addr == @0xcafe, ADMIN_ONLY);
         let (
             agent_signer, agent_ref
-        )  = agent::create_agent(publisher, username);
+        )  = agent::create_agent(publisher, user);
         let app = borrow_global_mut<App>(pub_addr);
         let obj = object::address_to_object<AgentCore>(signer::address_of(&agent_signer));
         coin_store::register<VirtualCoin>(&agent_signer, TIME_LOCK_SECONDS);
@@ -68,17 +68,19 @@ module agent::preview_agent {
         token_id
     }
 
-    fun set_up_test(publisher: &signer) {
+    fun set_up_test(publisher: &signer, user: &signer) {
         account::create_account_for_test(signer::address_of(publisher));
+        account::create_account_for_test(@0x007);
+        coin::register<aptos_framework::aptos_coin::AptosCoin>(user)
     }
 
-    #[test(publisher = @0xcafe)]
-    fun test_main(publisher: &signer)
+    #[test(publisher = @0xcafe, user = @0x007)]
+    fun test_main(publisher: &signer, user: &signer)
     acquires App {
-        set_up_test(publisher);
+        set_up_test(publisher, user);
         init_module(publisher);
 
-        let agent = create_user_agent(publisher, b"myname");
+        let agent = create_user_agent(publisher, @0x007);
         fund_user_agent_100(publisher, &agent);
         assert!(coin_store::balance<VirtualCoin>(&agent) == 100, 0);
         let id = mint_nft_for_agent_consume_100(publisher, &agent);
