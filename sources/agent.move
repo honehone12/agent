@@ -50,7 +50,6 @@ module agent::agent {
     acquires AgentCore {
         let AgentRef{inner: addr} = agent;
         let core = borrow_global<AgentCore>(addr);
-        object::enable_ungated_transfer(&core.transfer_ref);
         let linear = object::generate_linear_transfer_ref(&core.transfer_ref);
         object::transfer_with_ref(linear, core.owner);        
         RevokedRef{inner: addr}
@@ -60,29 +59,13 @@ module agent::agent {
         ref.inner
     }
 
-    public fun enable_transfer(owner: &signer, object: &Object<AgentCore>)
-    acquires AgentCore {
-        let agent_addr = object::object_address(object);
-        let core = borrow_global<AgentCore>(agent_addr);
-        assert!(signer::address_of(owner) == core.owner, error::permission_denied(E_NOT_OWNER));
-        object::enable_ungated_transfer(&core.transfer_ref);
-    }
-
-    public fun disable_transfer(owner: &signer, object: &Object<AgentCore>)
-    acquires AgentCore {
-        let agent_addr = object::object_address(object);
-        let core = borrow_global<AgentCore>(agent_addr);
-        assert!(signer::address_of(owner) == core.owner, error::permission_denied(E_NOT_OWNER));
-        object::disable_ungated_transfer(&core.transfer_ref);
-    }
-
     public fun generate_signer_with_ref(ref: &AgentRef): signer
     acquires AgentCore {
         let core = borrow_global<AgentCore>(ref.inner);
         object::generate_signer_for_extending(&core.extend_ref)
     }
 
-    public fun generate_signer(owner: &signer, object: &Object<AgentCore>): signer
+    public fun generate_signer_for_owner(owner: &signer, object: &Object<AgentCore>): signer
     acquires AgentCore {
         let agent_addr = object::object_address(object);
         let core = borrow_global<AgentCore>(agent_addr);
