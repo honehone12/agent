@@ -1,18 +1,17 @@
 module agent::agent {
+    use std::signer;
     use std::error;
     use std::string;
     use aptos_std::string_utils;
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
-    use aptos_framework::object::{Self, Object, ExtendRef, TransferRef};
+    use aptos_framework::object::{Self, Object, ObjectGroup, ExtendRef, TransferRef};
 
     const E_ACCOUNT_NOT_INITIALIZED: u64 = 1;
+    const E_NOT_OWNER: u64 = 2;
 
-    #[resource_group(scope = global)]
-    struct AgentGroup {}
-
-    #[resource_group_member(group = AgentGroup)]
+    #[resource_group_member(group = ObjectGroup)]
     struct AgentCore has key {
         owner: address,
         extend_ref: ExtendRef,
@@ -47,13 +46,48 @@ module agent::agent {
         agent.inner
     }
 
-    public fun revoke(agent: AgentRef): RevokedRef {
+    public fun revoke(agent: AgentRef): RevokedRef
+    acquires AgentCore {
         let AgentRef{inner: addr} = agent;
+        let core = borrow_global<AgentCore>(addr);
+        object::enable_ungated_transfer(&core.transfer_ref);
+        let linear = object::generate_linear_transfer_ref(&core.transfer_ref);
+        object::transfer_with_ref(linear, core.owner);        
         RevokedRef{inner: addr}
     }
 
     public fun revoked_address(ref: &RevokedRef): address {
         ref.inner
+    }
+
+    public fun enable_transfer(owner: &signer, object: &Object<AgentCore>)
+    acquires AgentCore {
+        let agent_addr = object::object_address(object);
+        let core = borrow_global<AgentCore>(agent_addr);
+        assert!(signer::address_of(owner) == core.owner, error::permission_denied(E_NOT_OWNER));
+        object::enable_ungated_transfer(&core.transfer_ref);
+    }
+
+    public fun disable_transfer(owner: &signer, object: &Object<AgentCore>)
+    acquires AgentCore {
+        let agent_addr = object::object_address(object);
+        let core = borrow_global<AgentCore>(agent_addr);
+        assert!(signer::address_of(owner) == core.owner, error::permission_denied(E_NOT_OWNER));
+        object::disable_ungated_transfer(&core.transfer_ref);
+    }
+
+    public fun generate_signer_with_ref(ref: &AgentRef): signer
+    acquires AgentCore {
+        let core = borrow_global<AgentCore>(ref.inner);
+        object::generate_signer_for_extending(&core.extend_ref)
+    }
+
+    public fun generate_signer(owner: &signer, object: &Object<AgentCore>): signer
+    acquires AgentCore {
+        let agent_addr = object::object_address(object);
+        let core = borrow_global<AgentCore>(agent_addr);
+        assert!(signer::address_of(owner) == core.owner, error::permission_denied(E_NOT_OWNER));
+        object::generate_signer_for_extending(&core.extend_ref)
     }
 
     public fun create_agent(publisher: &signer, user: address): (signer, AgentRef) {

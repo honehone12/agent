@@ -3,20 +3,20 @@ module agent::coin_store {
     use std::error;
     use aptos_framework::aptos_account;
     use aptos_framework::coin::{Self, Coin};
-    use aptos_framework::object::{Self, Object};
-    use agent::agent::{Self, AgentRef, AgentCore, AgentGroup, RevokedRef};
+    use aptos_framework::object::{Self, Object, ObjectGroup};
+    use agent::agent::{Self, AgentRef, AgentCore, RevokedRef};
 
     const E_NOT_AGENT: u64 = 1;
     const E_OVER_CONSUME: u64 = 2;
     const E_NOT_OWNER: u64 = 3;
 
-    #[resource_group_member(group = AgentGroup)]
+    #[resource_group_member(group = ObjectGroup)]
     struct CoinStore<phantom TCoin> has key {
         max_consumable: u64,
         coin: Coin<TCoin>
     }
 
-    #[resource_group_member(group = AgentGroup)]
+    #[resource_group_member(group = ObjectGroup)]
     struct Bin<phantom TCoin> has key {
         coin: Coin<TCoin>
     }

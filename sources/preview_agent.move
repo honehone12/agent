@@ -40,7 +40,7 @@ module agent::preview_agent {
         let app = borrow_global_mut<App>(pub_addr);
         let obj = object::address_to_object<AgentCore>(signer::address_of(&agent_signer));
         coin_store::register<VirtualCoin>(&agent_signer, 100);
-        token_store::initialize_token_store(&agent_signer, 1);
+        token_store::initialize_token_store(&agent_signer);
         smart_table::add(&mut app.user_table, obj, agent_ref);
         obj
     }

@@ -3,24 +3,19 @@ module agent::token_store {
     use std::signer;
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_token::token::{Self, TokenId, Token};
-    use aptos_framework::object::{Self, Object};
-    use agent::agent::{Self, AgentRef, AgentCore, AgentGroup};
+    use aptos_framework::object::{Self, Object, ObjectGroup};
+    use agent::agent::{Self, AgentRef, AgentCore};
 
     const E_ZERO_TOKEN: u64 = 1;
     const E_NOT_AGENT: u64 = 2;
+    const E_OVER_CONSUME: u64 = 3;
 
-    #[resource_group_member(group = AgentGroup)]
+    #[resource_group_member(group = ObjectGroup)]
     struct TokenStore has key {
-        max_consumable: u64,
         tokens: SmartTable<TokenId, Token>
     }
 
-    #[resource_group_member(group = AgentGroup)]
-    struct Bin has key {
-        tokens: SmartTable<TokenId, Token>
-    }
-
-    public fun initialize_token_store(agent_signer: &signer, max_consumable: u64) {
+    public fun initialize_token_store(agent_signer: &signer) {
         assert!(
             agent::is_agent(signer::address_of(agent_signer)), 
             error::permission_denied(E_NOT_AGENT)
@@ -29,13 +24,6 @@ module agent::token_store {
         move_to(
             agent_signer,
             TokenStore{
-                max_consumable,
-                tokens: smart_table::new()
-            }
-        );
-        move_to(
-            agent_signer,
-            Bin{
                 tokens: smart_table::new()
             }
         );
@@ -67,19 +55,20 @@ module agent::token_store {
         0 
     }
 
-    public fun consume(ref: &AgentRef, id: &TokenId, amount: u64)
-    acquires TokenStore, Bin {
+    public fun transfer_to_owner(ref: &AgentRef, id: &TokenId)
+    acquires TokenStore {
         let agent_addr = agent::agent_address(ref);
         let store = borrow_global_mut<TokenStore>(agent_addr);
-        let stored = smart_table::borrow_mut(&mut store.tokens, *id);
-        let consumed = token::split(stored, amount);
-        let bin = borrow_global_mut<Bin>(agent_addr);
+        let token = smart_table::remove(&mut store.tokens, *id);
+        let owner = agent::agent_owner_from_ref(ref);
+        token::direct_deposit_with_opt_in(owner, token);
+    }
 
-        if (!smart_table::contains(&bin.tokens,  *id)) {
-            smart_table::add(&mut store.tokens, *id, consumed);
-        } else {
-            let stored = smart_table::borrow_mut(&mut bin.tokens, *id);
-            token::merge(stored, consumed);
-        };
-    }   
+    public fun transfer_by_owner(owner: &signer, object: &Object<AgentCore>, id: &TokenId)
+    acquires TokenStore {
+        let agent_addr = object::object_address(object);
+        let store = borrow_global_mut<TokenStore>(agent_addr);
+        let token = smart_table::remove(&mut store.tokens, *id);
+        token::deposit_token(owner, token);
+    }
 }
