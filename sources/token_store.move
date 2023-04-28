@@ -11,6 +11,7 @@ module agent::token_store {
 
     #[resource_group_member(group = AgentGroup)]
     struct TokenStore has key {
+        max_consumable: u64,
         tokens: SmartTable<TokenId, Token>
     }
 
@@ -19,7 +20,7 @@ module agent::token_store {
         tokens: SmartTable<TokenId, Token>
     }
 
-    public fun initialize_token_store(agent_signer: &signer) {
+    public fun initialize_token_store(agent_signer: &signer, max_consumable: u64) {
         assert!(
             agent::is_agent(signer::address_of(agent_signer)), 
             error::permission_denied(E_NOT_AGENT)
@@ -28,6 +29,7 @@ module agent::token_store {
         move_to(
             agent_signer,
             TokenStore{
+                max_consumable,
                 tokens: smart_table::new()
             }
         );

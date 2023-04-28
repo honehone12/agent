@@ -2,7 +2,7 @@
 module agent::preview_agent {
     use std::signer;
     use aptos_std::smart_table::{Self, SmartTable};
-    use aptos_framework::account;
+    use aptos_framework::aptos_account;
     use aptos_framework::coin;
     use aptos_framework::object::{Self, Object};
     use aptos_token::token::{Self, TokenId};
@@ -12,7 +12,6 @@ module agent::preview_agent {
     use agent::virtual_coin::{Self, VirtualCoin};
 
     const ADMIN_ONLY: u64 = 1;
-    const TIME_LOCK_SECONDS: u64 = 259200; // 3days
 
     struct App has key {
         user_table: SmartTable<Object<AgentCore>, AgentRef>
@@ -40,8 +39,8 @@ module agent::preview_agent {
         )  = agent::create_agent(publisher, user);
         let app = borrow_global_mut<App>(pub_addr);
         let obj = object::address_to_object<AgentCore>(signer::address_of(&agent_signer));
-        coin_store::register<VirtualCoin>(&agent_signer, TIME_LOCK_SECONDS);
-        token_store::initialize_token_store(&agent_signer);
+        coin_store::register<VirtualCoin>(&agent_signer, 100);
+        token_store::initialize_token_store(&agent_signer, 1);
         smart_table::add(&mut app.user_table, obj, agent_ref);
         obj
     }
@@ -69,9 +68,8 @@ module agent::preview_agent {
     }
 
     fun set_up_test(publisher: &signer, user: &signer) {
-        account::create_account_for_test(signer::address_of(publisher));
-        account::create_account_for_test(@0x007);
-        coin::register<aptos_framework::aptos_coin::AptosCoin>(user)
+        aptos_account::create_account(signer::address_of(publisher));
+        aptos_account::create_account(signer::address_of(user));
     }
 
     #[test(publisher = @0xcafe, user = @0x007)]
