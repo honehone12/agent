@@ -3,7 +3,7 @@ module agent::preview_agent {
     use std::signer;
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_framework::aptos_account;
-    use aptos_framework::coin;
+    use aptos_framework::coin::{Self, BurnCapability};
     use aptos_framework::object::{Self, Object};
     use aptos_token::token::{Self, TokenId};
     use agent::agent::{Self, AgentCore, AgentRef};
@@ -14,17 +14,19 @@ module agent::preview_agent {
     const ADMIN_ONLY: u64 = 1;
 
     struct App has key {
+        burn_cap: BurnCapability<VirtualCoin>,
         user_table: SmartTable<Object<AgentCore>, AgentRef>
     }
 
     fun init_module(publisher: &signer) {
-        virtual_coin::initialize(publisher);
+        let burn_cap = virtual_coin::initialize(publisher);
         coin::register<VirtualCoin>(publisher);
         virtual_coin::mint(publisher, signer::address_of(publisher), 100_000_000_000);
 
         move_to(
             publisher,
             App{
+                burn_cap,
                 user_table: smart_table::new()
             }
         );
@@ -39,7 +41,7 @@ module agent::preview_agent {
         )  = agent::create_agent(publisher, user);
         let app = borrow_global_mut<App>(pub_addr);
         let obj = object::address_to_object<AgentCore>(signer::address_of(&agent_signer));
-        coin_store::register<VirtualCoin>(&agent_signer, 100);
+        coin_store::register<VirtualCoin>(&agent_signer, app.burn_cap, 100);
         token_store::initialize_token_store(&agent_signer);
         smart_table::add(&mut app.user_table, obj, agent_ref);
         obj

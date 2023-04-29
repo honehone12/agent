@@ -22,10 +22,6 @@ module agent::agent {
         inner: address
     }
 
-    struct RevokedRef has drop {
-        inner: address
-    }
-
     public fun is_agent(location: address): bool {
         exists<AgentCore>(location)
     }
@@ -46,17 +42,12 @@ module agent::agent {
         agent.inner
     }
 
-    public fun revoke(agent: AgentRef): RevokedRef
+    public fun revoke(agent: AgentRef)
     acquires AgentCore {
         let AgentRef{inner: addr} = agent;
         let core = borrow_global<AgentCore>(addr);
         let linear = object::generate_linear_transfer_ref(&core.transfer_ref);
         object::transfer_with_ref(linear, core.owner);        
-        RevokedRef{inner: addr}
-    }
-
-    public fun revoked_address(ref: &RevokedRef): address {
-        ref.inner
     }
 
     public fun generate_signer_with_ref(ref: &AgentRef): signer

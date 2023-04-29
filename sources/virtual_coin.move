@@ -18,7 +18,7 @@ module agent::virtual_coin {
         burn_cap: BurnCapability<VirtualCoin>
     }
 
-    public fun initialize(publisher: &signer) {
+    public fun initialize(publisher: &signer): BurnCapability<VirtualCoin> {
         let (
             burn_cap, 
             freeze_cap, 
@@ -40,6 +40,7 @@ module agent::virtual_coin {
         );
 
         coin::destroy_freeze_cap(freeze_cap);
+        burn_cap
     }
 
     public fun has_mint_capability(account: &signer): bool {

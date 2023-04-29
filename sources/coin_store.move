@@ -2,9 +2,9 @@ module agent::coin_store {
     use std::signer;
     use std::error;
     use aptos_framework::aptos_account;
-    use aptos_framework::coin::{Self, Coin};
+    use aptos_framework::coin::{Self, Coin, BurnCapability};
     use aptos_framework::object::{Self, Object, ObjectGroup};
-    use agent::agent::{Self, AgentRef, AgentCore, RevokedRef};
+    use agent::agent::{Self, AgentRef, AgentCore};
 
     const E_NOT_AGENT: u64 = 1;
     const E_OVER_CONSUME: u64 = 2;
@@ -12,16 +12,16 @@ module agent::coin_store {
 
     #[resource_group_member(group = ObjectGroup)]
     struct CoinStore<phantom TCoin> has key {
+        burn_cap: BurnCapability<TCoin>,
         max_consumable: u64,
         coin: Coin<TCoin>
     }
 
-    #[resource_group_member(group = ObjectGroup)]
-    struct Bin<phantom TCoin> has key {
-        coin: Coin<TCoin>
-    }
-
-    public fun register<TCoin>(agent_signer: &signer, max_consumable: u64) {
+    public fun register<TCoin>(
+        agent_signer: &signer, 
+        burn_cap: BurnCapability<TCoin>, 
+        max_consumable: u64
+    ) {
         assert!(
             agent::is_agent(signer::address_of(agent_signer)), 
             error::permission_denied(E_NOT_AGENT)
@@ -29,13 +29,8 @@ module agent::coin_store {
         move_to(
             agent_signer,
             CoinStore<TCoin>{
+                burn_cap,
                 max_consumable,
-                coin: coin::zero()
-            }
-        );
-        move_to(
-            agent_signer,
-            Bin<TCoin>{
                 coin: coin::zero()
             }
         );
@@ -78,19 +73,11 @@ module agent::coin_store {
     }
 
     public fun consume<TCoin>(ref: &AgentRef, amount: u64)
-    acquires CoinStore, Bin {
+    acquires CoinStore {
         let agent_addr = agent::agent_address(ref);
         let store = borrow_global_mut<CoinStore<TCoin>>(agent_addr);
         assert!(amount <= store.max_consumable, error::permission_denied(E_OVER_CONSUME));
         let consume_coin = coin::extract(&mut store.coin, amount);
-        let bin = borrow_global_mut<Bin<TCoin>>(agent_addr);
-        coin::merge<TCoin>(&mut bin.coin, consume_coin);        
-    }
-
-    public fun withdraw_from_bin<TCoin>(ref: &RevokedRef): Coin<TCoin>
-    acquires Bin {
-        let revoked_addr = agent::revoked_address(ref);
-        let bin = borrow_global_mut<Bin<TCoin>>(revoked_addr);
-        coin::extract_all(&mut bin.coin)
+        coin::burn(consume_coin, &store.burn_cap);
     }    
 }
